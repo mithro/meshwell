@@ -107,9 +107,16 @@ def test_explicit_msh_4_2_still_reads_back_and_is_kept(tmp_path) -> None:
     assert gmsh.option.getNumber("Mesh.MshFileVersion") == 4.2
 
 
-def test_msh_version_option_is_restored() -> None:
-    """The read-back leaves gmsh's own default MSH version (4.2 from gmsh 5) in place."""
+def test_default_msh_version_is_4_1(tmp_path) -> None:
+    """Without gmsh_version, meshwell writes MSH 4.1 (gmsh 4's default), also under gmsh 5."""
     entities, size, _ = SCENES["square"]
-    generate_mesh(entities(), dim=2, default_characteristic_length=size, verbosity=0)
-    default = 4.2 if GMSH_MAJOR >= 5 else 4.1
-    assert gmsh.option.getNumber("Mesh.MshFileVersion") == default
+    out = tmp_path / "mesh.msh"
+    generate_mesh(
+        entities(),
+        dim=2,
+        output_mesh=out,
+        default_characteristic_length=size,
+        verbosity=0,
+    )
+    assert out.read_text().splitlines()[1].split()[0] == "4.1"
+    assert gmsh.option.getNumber("Mesh.MshFileVersion") == 4.1

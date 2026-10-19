@@ -8,6 +8,9 @@ embedded entities in MSH4.2"). meshio's 4.1 reader does not expect those lists a
 records after the first one (for a 2D mesh: ``KeyError`` on a curve tag in
 ``meshio/gmsh/_gmsh41.py``, ``_read_elements``).
 
+So meshwell writes MSH 4.1 unless the caller asks for another version (``gmsh_version``), and its
+own in-memory meshio read-backs always use a version meshio reads.
+
 Added in the mithro/meshwell fork for gf180-tcad (https://github.com/mithro/gf180-tcad).
 """
 
@@ -20,6 +23,9 @@ import gmsh
 
 # The newest MSH version meshio reads.
 MESHIO_MAX_MSH_VERSION = 4.1
+# The MSH version meshwell writes when the caller does not ask for one: gmsh 4's default, so a
+# file meshwell writes reads back with meshio under gmsh 4 and gmsh 5 alike.
+DEFAULT_MSH_VERSION = MESHIO_MAX_MSH_VERSION
 
 
 @contextlib.contextmanager
