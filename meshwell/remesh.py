@@ -19,6 +19,7 @@ from scipy.spatial import cKDTree
 
 from meshwell.cad_settings import CADSettings
 from meshwell.model import ModelManager
+from meshwell.msh_compat import meshio_readable_msh
 from meshwell.resolution import (
     DirectSizeSpecification,
     StructuredExtrusionResolutionSpec,
@@ -656,7 +657,8 @@ class RemeshMMG(Remesher):
             # If loaded via ModelManager, we need to export it to meshio
             # This is a bit inefficient but robust
             with tempfile.NamedTemporaryFile(suffix=".msh") as tmp:
-                self.model_manager.save_to_mesh(tmp.name)
+                with meshio_readable_msh():
+                    self.model_manager.save_to_mesh(tmp.name)
                 mesh = meshio.read(tmp.name)
 
         with tempfile.TemporaryDirectory() as tmpdir:

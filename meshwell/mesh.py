@@ -20,6 +20,7 @@ from meshwell.cad_settings import (
     MissingCADSettingsError,
 )
 from meshwell.model import ModelManager
+from meshwell.msh_compat import meshio_readable_msh
 
 logger = logging.getLogger(__name__)
 
@@ -481,7 +482,8 @@ class Mesh:
             None
         ), tempfile.TemporaryDirectory() as tmpdirname:
             temp_mesh_path = f"{tmpdirname}/mesh.msh"
-            gmsh.write(temp_mesh_path)
+            with meshio_readable_msh():
+                gmsh.write(temp_mesh_path)
             return meshio.read(temp_mesh_path)
 
     def save_to_file(self, output_file: Path) -> None:
@@ -514,7 +516,8 @@ class Mesh:
             None
         ), tempfile.TemporaryDirectory() as tmpdirname:
             temp_mesh_path = f"{tmpdirname}/mesh.msh"
-            gmsh.write(temp_mesh_path)
+            with meshio_readable_msh():
+                gmsh.write(temp_mesh_path)
             return meshio.read(temp_mesh_path)
 
     def load_xao_file(self, input_file: Path) -> None:
