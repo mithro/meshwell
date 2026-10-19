@@ -1,4 +1,10 @@
 name: Tests
+# mithro/meshwell fork (for gf180-tcad, https://github.com/mithro/gf180-tcad): GitHub-hosted
+# runners, no secrets, read-only token, nothing published; actions pinned by commit. Upstream's
+# pre-commit and regression jobs run unchanged except that the Codecov upload is removed. The
+# gf180-tcad job runs the fork's regression tests (tests/test_gf180tcad_*.py) under the gmsh 5.0
+# development snapshot that gf180-tcad's dev-HEAD image uses, fetched from gf180-tcad's input
+# mirror and checked against its sha256.
 
 on:
   push:
@@ -8,32 +14,38 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
 
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: '.python-version'
-      - uses: pre-commit/action@v3.0.1
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
   run_regressions:
     name: Test code
     needs: pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # generate_references.sh installs meshwell at HEAD~1 to
           # produce reference .msh / .xao files that the local working
           # tree is then compared against byte-by-byte. Default
           # checkout depth is 1, so we need at least 2.
           fetch-depth: 2
+          persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       - name: Generate references from reference version
         run: bash generate_references.sh
         working-directory: tests
@@ -41,8 +53,41 @@ jobs:
         run: sudo apt-get install libglu1-mesa
       - name: Test
         run: uv run --extra dev pytest -n auto
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+
+  gf180tcad_gmsh5:
+    name: gf180-tcad tests (gmsh ${{ matrix.gmsh.name }})
+    needs: pre-commit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gmsh:
+          - name: "4.15.2 (PyPI)"
+            spec: "gmsh==4.15.2"
+            sha256: ""
+          - name: "5.0.0.dev20261018"
+            spec: "https://github.com/mithro/gf180-tcad/releases/download/gf180-tcad/inputs/tcad-dev-20261019/gmsh-5.0.0.dev20261018-py2.py3-none-manylinux_2_24_x86_64.whl"
+            sha256: "0ebc3eb6565490352031014cce36db4617d6eb8cd9ec642fb4a6b536f0cfc395"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      - name: Install dependencies
+        run: sudo apt-get install libglu1-mesa
+      - name: Install
+        env:
+          GMSH_SPEC: ${{ matrix.gmsh.spec }}
+          GMSH_SHA256: ${{ matrix.gmsh.sha256 }}
+        run: |
+          uv sync --extra dev
+          if [ -n "$GMSH_SHA256" ]; then
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/${GMSH_SPEC##*/}" "$GMSH_SPEC"
+            echo "$GMSH_SHA256  $RUNNER_TEMP/${GMSH_SPEC##*/}" | sha256sum -c -
+            GMSH_SPEC="$RUNNER_TEMP/${GMSH_SPEC##*/}"
+          fi
+          uv pip install --reinstall-package gmsh "$GMSH_SPEC"
+          uv run --no-sync python -c "import gmsh; print('gmsh', gmsh.__version__)"
+      - name: Test
+        run: uv run --no-sync pytest -p no:cacheprovider -o addopts= -v tests/test_gf180tcad_msh_readback.py
