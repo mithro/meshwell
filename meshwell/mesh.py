@@ -20,6 +20,7 @@ from meshwell.cad_settings import (
     MissingCADSettingsError,
 )
 from meshwell.model import ModelManager
+from meshwell.msh_compat import DEFAULT_MSH_VERSION, meshio_readable_msh
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +127,12 @@ class Mesh:
             "Mesh.Algorithm3D", _normalize_algo(global_3D_algorithm)[0]
         )
         gmsh.option.setNumber("Mesh.ElementOrder", mesh_element_order)
-        if gmsh_version is not None:
-            gmsh.option.setNumber("Mesh.MshFileVersion", gmsh_version)
+        # None: MSH 4.1 (DEFAULT_MSH_VERSION), gmsh 4's default, which meshio reads; gmsh 5's own
+        # default, MSH 4.2, is not (meshwell/msh_compat.py).
+        gmsh.option.setNumber(
+            "Mesh.MshFileVersion",
+            DEFAULT_MSH_VERSION if gmsh_version is None else gmsh_version,
+        )
         self.model_manager.sync_model()
 
     def _apply_periodic_boundaries(
@@ -481,7 +486,8 @@ class Mesh:
             None
         ), tempfile.TemporaryDirectory() as tmpdirname:
             temp_mesh_path = f"{tmpdirname}/mesh.msh"
-            gmsh.write(temp_mesh_path)
+            with meshio_readable_msh():
+                gmsh.write(temp_mesh_path)
             return meshio.read(temp_mesh_path)
 
     def save_to_file(self, output_file: Path) -> None:
@@ -514,7 +520,8 @@ class Mesh:
             None
         ), tempfile.TemporaryDirectory() as tmpdirname:
             temp_mesh_path = f"{tmpdirname}/mesh.msh"
-            gmsh.write(temp_mesh_path)
+            with meshio_readable_msh():
+                gmsh.write(temp_mesh_path)
             return meshio.read(temp_mesh_path)
 
     def load_xao_file(self, input_file: Path) -> None:
@@ -563,7 +570,7 @@ class Mesh:
             optimization_flags: Mesh optimization flags
             boundary_delimiter: Delimiter for boundary names
             resolution_specs: Mesh resolution specifications
-            gmsh_version: GMSH version
+            gmsh_version: GMSH MSH file version (e.g. 2.2 or 4.1); None means 4.1
             blueprint: mapping between entity and extrusion type
             interface_delimiter: String used to separate names in an interface
             pre_2d_hook: Optional callable invoked immediately before generate(2)
@@ -799,7 +806,8 @@ def mesh(
         n_threads: Number of threads to use
         filename: Temporary filename for GMSH model
         model: Optional Model instance to use (creates new if None)
-        gmsh_version: GMSH MSH file version (e.g. 2.2 or 4.1)
+        gmsh_version: GMSH MSH file version (e.g. 2.2 or 4.1); None means 4.1, which
+            meshio reads (gmsh 5's own default, 4.2, it does not)
         point_tolerance: used to set GMSH global variables. If given, must
             equal the CAD-stage ``point_tolerance`` (raises otherwise).
         interface_delimiter: String used to separate names in an interface
